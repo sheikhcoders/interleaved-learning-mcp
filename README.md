@@ -2,7 +2,9 @@
 
 A Model Context Protocol (MCP) server for interleaved learning, deployed on Vercel.
 
-## 🚀 Deploy
+## 🚀 Live Server
+
+**MCP Endpoint:** `https://interleaved-learning-mcp.vercel.app/api/mcp`
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/sheikhcoders/interleaved-learning-mcp)
 
@@ -29,11 +31,6 @@ Interleaved learning is a cognitive strategy that involves mixing different topi
 
 ## 🔌 Connect to Your MCP Client
 
-After deployment, your MCP endpoint will be:
-```
-https://[your-project].vercel.app/api/mcp
-```
-
 ### Claude Desktop
 
 Add to `claude_desktop_config.json`:
@@ -43,7 +40,7 @@ Add to `claude_desktop_config.json`:
     "interleaved-learning": {
       "transport": {
         "type": "streamable-http",
-        "url": "https://[your-project].vercel.app/api/mcp"
+        "url": "https://interleaved-learning-mcp.vercel.app/api/mcp"
       }
     }
   }
@@ -57,7 +54,7 @@ Add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "interleaved-learning": {
-      "url": "https://[your-project].vercel.app/api/mcp"
+      "url": "https://interleaved-learning-mcp.vercel.app/api/mcp"
     }
   }
 }

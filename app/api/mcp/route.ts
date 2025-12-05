@@ -1,375 +1,365 @@
 import { z } from 'zod';
 import { createMcpHandler } from 'mcp-handler';
 
-// In-memory storage (for demo - use database in production)
-const studyLogs: Array<{
+// Types for better type safety
+interface StudySession {
   userId: string;
   subject: string;
   duration: number;
   date: string;
   quizScore?: number;
-}> = [];
+}
 
-const flashcardDecks: Map<string, {
+interface Flashcard {
+  front: string;
+  back: string;
+  topic: string;
+}
+
+interface FlashcardDeck {
   name: string;
-  cards: Array<{ front: string; back: string; topic: string }>;
-}> = new Map();
+  cards: Flashcard[];
+}
 
-// Interleaving patterns
-const interleavingPatterns = {
-  'ABAB': { name: 'Simple Alternation', description: 'Alternate between two subjects (A→B→A→B)', difficulty: 'beginner' },
-  'ABCABC': { name: 'Triple Rotation', description: 'Rotate through three subjects (A→B→C→A→B→C)', difficulty: 'intermediate' },
-  'ABACBC': { name: 'Spaced Mixing', description: 'Mix with spacing for better retention', difficulty: 'intermediate' },
-  'Random': { name: 'Random Shuffle', description: 'Randomly shuffle all topics for maximum interleaving', difficulty: 'advanced' },
-  'Blocked-to-Interleaved': { name: 'Gradual Transition', description: 'Start blocked, gradually increase interleaving', difficulty: 'beginner' }
+interface SubjectStats {
+  totalMinutes: number;
+  sessions: number;
+  avgScore?: number;
+}
+
+// In-memory storage (for demo - use database in production)
+const studyLogs: StudySession[] = [];
+const flashcardDecks = new Map<string, FlashcardDeck>();
+
+// Interleaving patterns with research-backed descriptions
+const INTERLEAVING_PATTERNS = {
+  ABAB: {
+    name: 'Simple Alternation',
+    description: 'Alternate between two subjects (A→B→A→B)',
+    difficulty: 'beginner',
+    bestFor: 'Starting with interleaving, 2 related subjects'
+  },
+  ABCABC: {
+    name: 'Triple Rotation',
+    description: 'Rotate through three subjects (A→B→C→A→B→C)',
+    difficulty: 'intermediate',
+    bestFor: 'Balanced multi-subject study'
+  },
+  ABACBC: {
+    name: 'Spaced Mixing',
+    description: 'Mix with strategic spacing for retention',
+    difficulty: 'intermediate',
+    bestFor: 'When one subject needs more reinforcement'
+  },
+  Random: {
+    name: 'Random Shuffle',
+    description: 'Randomly shuffle all topics for maximum interleaving',
+    difficulty: 'advanced',
+    bestFor: 'Exam prep, maximizing discrimination learning'
+  },
+  'Blocked-to-Interleaved': {
+    name: 'Gradual Transition',
+    description: 'Start blocked, gradually increase interleaving',
+    difficulty: 'beginner',
+    bestFor: 'Learning new concepts before mixing'
+  }
+} as const;
+
+type PatternKey = keyof typeof INTERLEAVING_PATTERNS;
+
+// Utility functions
+const shuffle = <T>(array: T[]): T[] => {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 };
 
+const generateSchedule = (subjects: string[], pattern: PatternKey): string[] => {
+  const scheduleGenerators: Record<PatternKey, () => string[]> = {
+    ABAB: () => Array.from({ length: 4 }, (_, i) => subjects[i % subjects.length]),
+    ABCABC: () => Array.from({ length: 6 }, (_, i) => subjects[i % subjects.length]),
+    ABACBC: () => [
+      subjects[0], subjects[1], subjects[0],
+      subjects[2] || subjects[1], subjects[1], subjects[2] || subjects[0]
+    ],
+    Random: () => shuffle([...subjects, ...subjects]),
+    'Blocked-to-Interleaved': () => [...subjects, ...shuffle([...subjects])]
+  };
+  return scheduleGenerators[pattern]();
+};
+
+const createResponse = (data: object) => ({
+  content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }]
+});
+
+// MCP Handler
 const handler = createMcpHandler(
   (server) => {
     // Tool 1: Create Study Plan
     server.tool(
       'create_study_plan',
-      'Generate an interleaved study schedule for multiple subjects. Returns a structured plan that alternates between topics for better retention.',
+      'Generate an interleaved study schedule. Alternates between topics based on cognitive science research for optimal retention.',
       {
-        subjects: z.array(z.string()).min(2).describe('List of subjects to study (minimum 2)'),
-        totalMinutes: z.number().min(30).describe('Total study time in minutes'),
-        pattern: z.enum(['ABAB', 'ABCABC', 'ABACBC', 'Random', 'Blocked-to-Interleaved']).optional().describe('Interleaving pattern to use')
+        subjects: z.array(z.string()).min(2).max(6).describe('Subjects to study (2-6 items)'),
+        totalMinutes: z.number().min(20).max(240).describe('Total study time (20-240 min)'),
+        pattern: z.enum(['ABAB', 'ABCABC', 'ABACBC', 'Random', 'Blocked-to-Interleaved']).optional()
+          .describe('Interleaving pattern (default: ABAB)')
       },
       async ({ subjects, totalMinutes, pattern = 'ABAB' }) => {
-        const blocks: Array<{ subject: string; duration: number; order: number }> = [];
-        const blockDuration = Math.floor(totalMinutes / (subjects.length * 2));
-        
-        let schedule: string[] = [];
-        
-        switch (pattern) {
-          case 'ABAB':
-            for (let i = 0; i < 4; i++) {
-              schedule.push(subjects[i % subjects.length]);
-            }
-            break;
-          case 'ABCABC':
-            for (let i = 0; i < 6; i++) {
-              schedule.push(subjects[i % subjects.length]);
-            }
-            break;
-          case 'ABACBC':
-            schedule = [subjects[0], subjects[1], subjects[0], subjects[2] || subjects[1], subjects[1], subjects[2] || subjects[0]];
-            break;
-          case 'Random':
-            schedule = [...subjects, ...subjects].sort(() => Math.random() - 0.5);
-            break;
-          case 'Blocked-to-Interleaved':
-            schedule = [...subjects, ...subjects.sort(() => Math.random() - 0.5)];
-            break;
-        }
-        
-        schedule.forEach((subject, index) => {
-          blocks.push({ subject, duration: blockDuration, order: index + 1 });
-        });
+        const schedule = generateSchedule(subjects, pattern);
+        const blockDuration = Math.floor(totalMinutes / schedule.length);
+        const patternInfo = INTERLEAVING_PATTERNS[pattern];
 
-        const patternInfo = interleavingPatterns[pattern];
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              plan: {
-                pattern: patternInfo.name,
-                description: patternInfo.description,
-                totalMinutes,
-                blocks,
-                tip: 'Take a 2-minute break between blocks. Review previous topic briefly before switching.'
-              }
-            }, null, 2)
-          }]
-        };
+        return createResponse({
+          success: true,
+          plan: {
+            pattern: patternInfo.name,
+            description: patternInfo.description,
+            bestFor: patternInfo.bestFor,
+            totalMinutes,
+            blocks: schedule.map((subject, i) => ({
+              order: i + 1,
+              subject,
+              duration: blockDuration,
+              startAt: `${i * blockDuration} min`
+            })),
+            tips: [
+              'Take 2-min breaks between blocks',
+              'Briefly review previous topic before switching',
+              'Embrace the difficulty—it enhances learning!'
+            ]
+          }
+        });
       }
     );
 
     // Tool 2: Generate Interleaved Quiz
     server.tool(
       'generate_interleaved_quiz',
-      'Create a quiz with questions from multiple topics mixed together for interleaved practice.',
+      'Create a mixed-topic quiz. Interleaved questions force your brain to identify which strategy applies, strengthening learning.',
       {
         topics: z.array(z.object({
           name: z.string(),
           questions: z.array(z.object({
             question: z.string(),
-            options: z.array(z.string()),
+            options: z.array(z.string()).min(2).max(5),
             correctIndex: z.number()
-          }))
-        })).describe('Array of topics with their questions'),
-        questionsPerTopic: z.number().min(1).max(10).optional().describe('Number of questions per topic')
+          })).min(1)
+        })).min(2).describe('Topics with questions (min 2 topics)'),
+        questionsPerTopic: z.number().min(1).max(10).optional().describe('Questions per topic (default: 3)')
       },
       async ({ topics, questionsPerTopic = 3 }) => {
-        const allQuestions: Array<{
-          topic: string;
-          question: string;
-          options: string[];
-          correctIndex: number;
-        }> = [];
+        const allQuestions = topics.flatMap(topic =>
+          topic.questions.slice(0, questionsPerTopic).map(q => ({ topic: topic.name, ...q }))
+        );
 
-        topics.forEach(topic => {
-          const selected = topic.questions.slice(0, questionsPerTopic);
-          selected.forEach(q => {
-            allQuestions.push({
-              topic: topic.name,
-              ...q
-            });
-          });
+        return createResponse({
+          success: true,
+          quiz: {
+            totalQuestions: allQuestions.length,
+            topicsCovered: topics.map(t => t.name),
+            questions: shuffle(allQuestions).map((q, i) => ({ number: i + 1, ...q })),
+            tip: 'First identify which topic each question belongs to—this strengthens category learning!'
+          }
         });
-
-        // Shuffle for interleaving
-        const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              quiz: {
-                totalQuestions: shuffled.length,
-                questions: shuffled.map((q, i) => ({
-                  number: i + 1,
-                  topic: q.topic,
-                  question: q.question,
-                  options: q.options,
-                  correctIndex: q.correctIndex
-                })),
-                instructions: 'Questions are interleaved from different topics. This challenges your brain to identify which concept applies to each question.'
-              }
-            }, null, 2)
-          }]
-        };
       }
     );
 
     // Tool 3: Create Flashcard Deck
     server.tool(
       'create_flashcard_deck',
-      'Create a new flashcard deck with cards from multiple topics for interleaved review.',
+      'Create a multi-topic flashcard deck. Cards from different topics will be shuffled for interleaved practice.',
       {
-        deckName: z.string().describe('Name for the flashcard deck'),
+        deckName: z.string().min(1).max(50).describe('Deck name'),
         cards: z.array(z.object({
-          front: z.string(),
-          back: z.string(),
-          topic: z.string()
-        })).describe('Array of flashcards with front, back, and topic')
+          front: z.string().min(1),
+          back: z.string().min(1),
+          topic: z.string().min(1)
+        })).min(2).describe('Flashcards with front, back, and topic')
       },
       async ({ deckName, cards }) => {
         flashcardDecks.set(deckName, { name: deckName, cards });
-        
-        const topicCounts: Record<string, number> = {};
-        cards.forEach(card => {
-          topicCounts[card.topic] = (topicCounts[card.topic] || 0) + 1;
-        });
 
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              deck: {
-                name: deckName,
-                totalCards: cards.length,
-                topicBreakdown: topicCounts,
-                message: `Created deck "${deckName}" with ${cards.length} cards from ${Object.keys(topicCounts).length} topics.`
-              }
-            }, null, 2)
-          }]
-        };
+        const topicCounts = cards.reduce<Record<string, number>>((acc, card) => {
+          acc[card.topic] = (acc[card.topic] || 0) + 1;
+          return acc;
+        }, {});
+
+        return createResponse({
+          success: true,
+          deck: {
+            name: deckName,
+            totalCards: cards.length,
+            topics: Object.entries(topicCounts).map(([topic, count]) => ({ topic, count })),
+            message: `Created "${deckName}" with ${cards.length} cards across ${Object.keys(topicCounts).length} topics`
+          }
+        });
       }
     );
 
     // Tool 4: Get Shuffled Flashcards
     server.tool(
       'get_shuffled_flashcards',
-      'Retrieve flashcards from a deck in interleaved (shuffled) order for study.',
+      'Get flashcards in shuffled order. Interleaved review improves long-term retention.',
       {
-        deckName: z.string().describe('Name of the flashcard deck'),
-        count: z.number().optional().describe('Number of cards to retrieve (default: all)')
+        deckName: z.string().describe('Deck name'),
+        count: z.number().min(1).max(50).optional().describe('Number of cards (default: all)')
       },
       async ({ deckName, count }) => {
         const deck = flashcardDecks.get(deckName);
-        
+
         if (!deck) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: `Deck "${deckName}" not found. Available decks: ${Array.from(flashcardDecks.keys()).join(', ') || 'none'}`
-              }, null, 2)
-            }]
-          };
+          const available = Array.from(flashcardDecks.keys());
+          return createResponse({
+            success: false,
+            error: `Deck "${deckName}" not found`,
+            availableDecks: available.length ? available : 'No decks created yet'
+          });
         }
 
-        let cards = [...deck.cards].sort(() => Math.random() - 0.5);
-        if (count && count < cards.length) {
-          cards = cards.slice(0, count);
-        }
+        const cards = shuffle(deck.cards).slice(0, count || deck.cards.length);
 
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              deckName,
-              cards: cards.map((card, i) => ({
-                number: i + 1,
-                topic: card.topic,
-                front: card.front,
-                back: card.back
-              })),
-              studyTip: 'Cards are shuffled across topics. Try to recall the answer before flipping!'
-            }, null, 2)
-          }]
-        };
+        return createResponse({
+          success: true,
+          deckName,
+          totalInDeck: deck.cards.length,
+          cards: cards.map((card, i) => ({ number: i + 1, ...card })),
+          tip: 'Try to recall before flipping. Struggling is part of learning!'
+        });
       }
     );
 
     // Tool 5: Log Study Session
     server.tool(
       'log_study_session',
-      'Record a completed study session to track learning progress over time.',
+      'Record a study session. Tracking helps identify patterns and optimize your learning.',
       {
-        userId: z.string().describe('User identifier'),
-        subject: z.string().describe('Subject studied'),
-        duration: z.number().min(1).describe('Duration in minutes'),
-        quizScore: z.number().min(0).max(100).optional().describe('Quiz score percentage if applicable')
+        userId: z.string().min(1).describe('Your user ID'),
+        subject: z.string().min(1).describe('Subject studied'),
+        duration: z.number().min(1).max(480).describe('Duration in minutes'),
+        quizScore: z.number().min(0).max(100).optional().describe('Quiz score if taken')
       },
       async ({ userId, subject, duration, quizScore }) => {
-        const session = {
+        const session: StudySession = {
           userId,
           subject,
           duration,
           date: new Date().toISOString(),
           quizScore
         };
-        
         studyLogs.push(session);
 
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              logged: session,
-              message: `Logged ${duration} minutes of ${subject} study${quizScore !== undefined ? ` with ${quizScore}% quiz score` : ''}.`
-            }, null, 2)
-          }]
-        };
+        const userTotal = studyLogs
+          .filter(log => log.userId === userId)
+          .reduce((sum, log) => sum + log.duration, 0);
+
+        return createResponse({
+          success: true,
+          logged: session,
+          stats: {
+            totalStudyTime: `${userTotal} minutes`,
+            message: quizScore !== undefined
+              ? `Logged ${duration}min of ${subject} with ${quizScore}% score`
+              : `Logged ${duration}min of ${subject}`
+          }
+        });
       }
     );
 
     // Tool 6: Get Learning Progress
     server.tool(
       'get_learning_progress',
-      'Retrieve learning progress and statistics for a user, with recommendations for improvement.',
+      'View your learning statistics and get personalized recommendations.',
       {
-        userId: z.string().describe('User identifier')
+        userId: z.string().min(1).describe('Your user ID')
       },
       async ({ userId }) => {
         const userLogs = studyLogs.filter(log => log.userId === userId);
-        
-        if (userLogs.length === 0) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                progress: null,
-                message: 'No study sessions found. Start studying to track your progress!'
-              }, null, 2)
-            }]
-          };
+
+        if (!userLogs.length) {
+          return createResponse({
+            success: true,
+            progress: null,
+            message: 'No sessions yet. Start studying to track progress!'
+          });
         }
 
-        const subjectStats: Record<string, { totalMinutes: number; sessions: number; avgScore?: number }> = {};
-        
-        userLogs.forEach(log => {
-          if (!subjectStats[log.subject]) {
-            subjectStats[log.subject] = { totalMinutes: 0, sessions: 0 };
+        const stats = userLogs.reduce<Record<string, SubjectStats>>((acc, log) => {
+          if (!acc[log.subject]) {
+            acc[log.subject] = { totalMinutes: 0, sessions: 0 };
           }
-          subjectStats[log.subject].totalMinutes += log.duration;
-          subjectStats[log.subject].sessions += 1;
-          if (log.quizScore !== undefined) {
-            const scores = userLogs.filter(l => l.subject === log.subject && l.quizScore !== undefined);
-            subjectStats[log.subject].avgScore = scores.reduce((sum, l) => sum + (l.quizScore || 0), 0) / scores.length;
-          }
-        });
+          acc[log.subject].totalMinutes += log.duration;
+          acc[log.subject].sessions += 1;
 
+          if (log.quizScore !== undefined) {
+            const subjectLogs = userLogs.filter(l => l.subject === log.subject && l.quizScore !== undefined);
+            acc[log.subject].avgScore = Math.round(
+              subjectLogs.reduce((sum, l) => sum + (l.quizScore || 0), 0) / subjectLogs.length
+            );
+          }
+          return acc;
+        }, {});
+
+        const subjects = Object.keys(stats);
         const totalMinutes = userLogs.reduce((sum, log) => sum + log.duration, 0);
-        const subjects = Object.keys(subjectStats);
-        const weakestSubject = subjects.reduce((a, b) => 
-          (subjectStats[a].avgScore || 100) < (subjectStats[b].avgScore || 100) ? a : b
+        const weakest = subjects.reduce((a, b) =>
+          (stats[a].avgScore ?? 100) < (stats[b].avgScore ?? 100) ? a : b
         );
 
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              progress: {
-                totalSessions: userLogs.length,
-                totalMinutes,
-                subjectBreakdown: subjectStats,
-                recommendations: [
-                  subjects.length < 3 ? 'Add more subjects to benefit from interleaving' : 'Good variety of subjects!',
-                  weakestSubject ? `Focus more on ${weakestSubject} - it has your lowest scores` : 'Keep up the balanced practice!',
-                  totalMinutes < 60 ? 'Try to study at least 1 hour total per week' : 'Great study consistency!'
-                ]
-              }
-            }, null, 2)
-          }]
-        };
+        const recommendations = [
+          subjects.length < 3
+            ? '📚 Add more subjects to maximize interleaving benefits'
+            : '✅ Great variety of subjects!',
+          stats[weakest]?.avgScore !== undefined && stats[weakest].avgScore! < 70
+            ? `🎯 Focus more on ${weakest} (lowest score: ${stats[weakest].avgScore}%)`
+            : '✅ Balanced performance across subjects!',
+          totalMinutes < 120
+            ? '⏱️ Aim for 2+ hours of total weekly study'
+            : '✅ Strong study consistency!'
+        ];
+
+        return createResponse({
+          success: true,
+          progress: {
+            totalSessions: userLogs.length,
+            totalMinutes,
+            subjects: Object.entries(stats).map(([name, data]) => ({ name, ...data })),
+            recommendations
+          }
+        });
       }
     );
 
     // Tool 7: Get Interleaving Patterns
     server.tool(
       'get_interleaving_patterns',
-      'Get information about available interleaving patterns and their benefits.',
+      'Learn about interleaving patterns and their research-backed benefits.',
       {},
       async () => {
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              patterns: Object.entries(interleavingPatterns).map(([key, value]) => ({
-                id: key,
-                ...value
-              })),
-              benefits: [
-                'Improves long-term retention by up to 43%',
-                'Enhances ability to distinguish between concepts',
-                'Builds flexible problem-solving skills',
-                'Better prepares for real-world application of knowledge'
-              ],
-              tips: [
-                'Start with simpler patterns (ABAB) if new to interleaving',
-                'Gradually increase complexity as you get comfortable',
-                'Interleave related but distinct topics for best results',
-                'Combine with spaced repetition for maximum retention'
-              ]
-            }, null, 2)
-          }]
-        };
+        return createResponse({
+          success: true,
+          patterns: Object.entries(INTERLEAVING_PATTERNS).map(([id, info]) => ({ id, ...info })),
+          researchHighlights: [
+            '📈 43% better retention vs blocked practice (Rohrer & Taylor, 2007)',
+            '🧠 Enhances discrimination between similar concepts',
+            '🔄 Improves transfer to new problem types',
+            '💪 Difficulty during learning = stronger memories'
+          ],
+          gettingStarted: [
+            '1. Start with ABAB pattern for 2 subjects',
+            '2. Use 15-25 min blocks (optimal focus duration)',
+            '3. Take 2-min breaks between switches',
+            '4. Progress to Random pattern as you advance'
+          ]
+        });
       }
     );
   },
-  {
-    capabilities: {
-      tools: {}
-    }
-  },
-  {
-    basePath: '/api',
-    maxDuration: 60,
-    verboseLogs: process.env.NODE_ENV === 'development'
-  }
+  { capabilities: { tools: {} } },
+  { basePath: '/api', maxDuration: 60, verboseLogs: process.env.NODE_ENV === 'development' }
 );
 
 export { handler as GET, handler as POST, handler as DELETE };
