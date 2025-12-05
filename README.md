@@ -8,6 +8,11 @@ A Model Context Protocol (MCP) server implementing cognitive science-backed inte
 
 **MCP Endpoint:** `https://interleaved-learning-mcp.vercel.app/api/mcp`
 
+### LLMs.txt Support
+
+- [`/llms.txt`](https://interleaved-learning-mcp.vercel.app/llms.txt) - Quick reference for LLMs
+- [`/llms-full.txt`](https://interleaved-learning-mcp.vercel.app/llms-full.txt) - Complete documentation for LLMs
+
 ---
 
 ## 📚 Documentation
@@ -139,6 +144,7 @@ Connect to `http://localhost:3000/api/mcp` using Streamable HTTP transport.
 - [Interleaving: A Research-Based Strategy](https://www.learningscientists.org/interleaving)
 - [Model Context Protocol Docs](https://modelcontextprotocol.io/)
 - [Vercel MCP Deployment Guide](https://vercel.com/docs/mcp)
+- [llms.txt Standard](https://llmstxt.org/)
 
 ---
 

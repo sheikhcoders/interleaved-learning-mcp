@@ -1,0 +1,259 @@
+# Interleaved Learning MCP Server - Complete Documentation
+
+> A Model Context Protocol (MCP) server implementing cognitive science-backed interleaved learning techniques for optimal knowledge retention.
+
+## MCP Endpoint
+
+https://interleaved-learning-mcp.vercel.app/api/mcp
+
+## What is This?
+
+This is a remote MCP (Model Context Protocol) server that provides AI assistants with tools for implementing interleaved learning - a research-backed cognitive strategy proven to improve long-term retention by up to 43% compared to traditional blocked practice.
+
+## What is Interleaved Learning?
+
+Interleaved learning involves mixing different topics during study sessions instead of focusing on one topic at a time. Research shows this approach:
+
+- Improves long-term retention (up to 43% better - Rohrer & Taylor, 2007)
+- Enhances ability to distinguish between similar concepts
+- Improves transfer of knowledge to new situations
+- Builds more flexible problem-solving skills
+
+The key insight: The "desirable difficulty" of switching between topics forces the brain to practice retrieval and discrimination, strengthening neural pathways.
+
+## Connection Details
+
+### For Cursor IDE
+
+Add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "interleaved-learning": {
+      "url": "https://interleaved-learning-mcp.vercel.app/api/mcp"
+    }
+  }
+}
+```
+
+### For Claude Desktop
+
+Add to `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "interleaved-learning": {
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://interleaved-learning-mcp.vercel.app/api/mcp"
+      }
+    }
+  }
+}
+```
+
+## Available Tools (7 Total)
+
+### 1. create_study_plan
+
+Generate an interleaved study schedule for multiple subjects.
+
+**Parameters:**
+- subjects (array, required): List of subjects to study (2-6 items)
+- totalMinutes (number, required): Total study time (20-240 minutes)
+- pattern (string, optional): Interleaving pattern to use
+
+**Available Patterns:**
+- ABAB: Simple alternation between two subjects (beginner)
+- ABCABC: Triple rotation through three subjects (intermediate)
+- ABACBC: Spaced mixing for better retention (intermediate)
+- Random: Random shuffle for maximum interleaving (advanced)
+- Blocked-to-Interleaved: Start blocked, gradually increase mixing (beginner)
+
+**Example:**
+```json
+{
+  "subjects": ["Mathematics", "Physics", "Chemistry"],
+  "totalMinutes": 90,
+  "pattern": "ABCABC"
+}
+```
+
+**Returns:** Structured study plan with time blocks, activities, and tips.
+
+---
+
+### 2. generate_interleaved_quiz
+
+Create a mixed-topic quiz that strengthens discrimination learning.
+
+**Parameters:**
+- topics (array, required): Array of topics with questions
+  - name (string): Topic name
+  - questions (array): Questions with question, options, correctIndex
+- questionsPerTopic (number, optional): Questions per topic (default: 3)
+
+**Example:**
+```json
+{
+  "topics": [
+    {
+      "name": "Algebra",
+      "questions": [
+        {
+          "question": "Solve: 2x + 5 = 15",
+          "options": ["x = 5", "x = 10", "x = 7.5", "x = 3"],
+          "correctIndex": 0
+        }
+      ]
+    }
+  ],
+  "questionsPerTopic": 3
+}
+```
+
+**Returns:** Shuffled quiz with questions mixed across topics.
+
+---
+
+### 3. create_flashcard_deck
+
+Create a multi-topic flashcard deck for interleaved review.
+
+**Parameters:**
+- deckName (string, required): Name for the deck
+- cards (array, required): Flashcards with front, back, and topic
+
+**Example:**
+```json
+{
+  "deckName": "Science Review",
+  "cards": [
+    { "front": "What is photosynthesis?", "back": "Process by which plants convert light to energy", "topic": "Biology" },
+    { "front": "F = ma represents?", "back": "Newton's Second Law of Motion", "topic": "Physics" }
+  ]
+}
+```
+
+**Returns:** Confirmation with deck statistics and topic breakdown.
+
+---
+
+### 4. get_shuffled_flashcards
+
+Retrieve flashcards in shuffled (interleaved) order for study.
+
+**Parameters:**
+- deckName (string, required): Name of the deck to retrieve
+- count (number, optional): Number of cards to get (default: all)
+
+**Example:**
+```json
+{
+  "deckName": "Science Review",
+  "count": 10
+}
+```
+
+**Returns:** Shuffled flashcards across all topics with study tips.
+
+---
+
+### 5. log_study_session
+
+Record a completed study session for progress tracking.
+
+**Parameters:**
+- userId (string, required): User identifier
+- subject (string, required): Subject studied
+- duration (number, required): Duration in minutes
+- quizScore (number, optional): Quiz score percentage (0-100)
+
+**Example:**
+```json
+{
+  "userId": "student123",
+  "subject": "Mathematics",
+  "duration": 45,
+  "quizScore": 85
+}
+```
+
+**Returns:** Confirmation with session details and cumulative stats.
+
+---
+
+### 6. get_learning_progress
+
+View learning statistics and get personalized recommendations.
+
+**Parameters:**
+- userId (string, required): User identifier
+
+**Example:**
+```json
+{
+  "userId": "student123"
+}
+```
+
+**Returns:** Progress breakdown by subject with:
+- Total study time and sessions
+- Average quiz scores per subject
+- Personalized recommendations for improvement
+
+---
+
+### 7. get_interleaving_patterns
+
+Learn about available interleaving patterns and their benefits.
+
+**Parameters:** None required
+
+**Returns:** Detailed information about each pattern including:
+- Pattern descriptions and examples
+- Difficulty levels
+- Best use cases
+- Research-backed benefits
+
+## Research Background
+
+Interleaved learning is supported by extensive cognitive science research:
+
+1. **Rohrer & Taylor (2007)**: Found 43% improvement in test performance with interleaving vs. blocking
+2. **Kornell & Bjork (2008)**: Demonstrated benefits for learning artist painting styles
+3. **Taylor & Rohrer (2010)**: Showed interleaving helps students learn to solve different types of math problems
+
+Key mechanisms:
+- **Discrimination learning**: Forces learners to identify which strategy applies
+- **Retrieval practice**: Switching topics requires recalling previous material
+- **Desirable difficulty**: Challenge during learning strengthens memory traces
+
+## Technical Details
+
+- **Protocol**: Model Context Protocol (MCP)
+- **Transport**: Streamable HTTP
+- **Framework**: Next.js 15
+- **Adapter**: mcp-handler (Vercel)
+- **Validation**: Zod schemas
+- **Deployment**: Vercel Edge Functions
+
+## Repository
+
+https://github.com/sheikhcoders/interleaved-learning-mcp
+
+## Author
+
+Likhon Sheikh
+GitHub: @sheikhcoders
+Email: sheikhcoders@gmail.com
+
+## License
+
+MIT License © 2024 Likhon Sheikh
+
+## Related Links
+
+- MCP Specification: https://modelcontextprotocol.io/
+- Vercel MCP Docs: https://vercel.com/docs/mcp
+- llms.txt Standard: https://llmstxt.org/
