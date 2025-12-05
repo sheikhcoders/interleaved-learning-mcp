@@ -1,8 +1,23 @@
 {
   "name": "interleaved-learning-mcp",
   "version": "1.0.0",
-  "description": "MCP Server for Interleaved Learning - Study Scheduler, Quiz Generator, Flashcard Shuffler, and Learning Tracker",
-  "private": true,
+  "description": "MCP server for interleaved learning - cognitive science-backed study optimization",
+  "author": "Likhon Sheikh <sheikhcoders@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sheikhcoders/interleaved-learning-mcp"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "interleaved-learning",
+    "education",
+    "cognitive-science",
+    "study-tools",
+    "flashcards",
+    "spaced-repetition"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,16 +25,17 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "mcp-handler": "^1.0.4",
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "mcp-handler": "^1.0.4",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
-    "typescript": "^5.7.0"
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
   }
 }
