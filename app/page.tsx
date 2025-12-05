@@ -1,4 +1,7 @@
+// Force redeploy - updated at 2025-12-05T16:40:00Z
 export default function Home() {
+  const endpoint = "https://interleaved-learning-mcp.vercel.app/api/mcp";
+  
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
       <div className="max-w-4xl mx-auto px-6 py-16">
@@ -16,7 +19,7 @@ export default function Home() {
         <div className="bg-gray-800 rounded-xl p-6 mb-12 border border-gray-700">
           <h2 className="text-sm uppercase tracking-wide text-gray-400 mb-2">MCP Endpoint</h2>
           <code className="text-lg text-green-400 break-all">
-            https://interleaved-learning-mcp.vercel.app/api/mcp
+            {endpoint}
           </code>
         </div>
 
@@ -57,7 +60,7 @@ export default function Home() {
 {`{
   "mcpServers": {
     "interleaved-learning": {
-      "url": "https://interleaved-learning-mcp.vercel.app/api/mcp"
+      "url": "${endpoint}"
     }
   }
 }`}
@@ -73,7 +76,7 @@ export default function Home() {
     "interleaved-learning": {
       "transport": {
         "type": "streamable-http",
-        "url": "https://interleaved-learning-mcp.vercel.app/api/mcp"
+        "url": "${endpoint}"
       }
     }
   }
